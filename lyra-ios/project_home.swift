@@ -8,68 +8,46 @@
 import SwiftUI
 internal import Combine
 
-// MARK: - Models
-struct Project: Codable, Identifiable {
-    let id: Int
-    let name: String
-    let description: String
-    let tickets: [Ticket]
-}
-
 struct CreateProject: Codable {
     let name: String
     let description: String
 }
 
-// MARK: - Service (logic unchanged)
+// MARK: - Service
+@MainActor
 class ProjectService: ObservableObject {
     @Published var projects: [Project] = []
     @Published var tickets: [Ticket] = []
     @Published var isLoading = false
     @Published var errorMessage: String? = nil
-    private let decoder = JSONDecoder()
-    private let encoder = JSONEncoder()
     
-    init() {
-        encoder.keyEncodingStrategy = .convertToSnakeCase
-    }
+    private let client = LyraAPIClient.shared
+    private let encoder = JSONEncoder()
     
     func load_project() async {
         isLoading = true
         defer { isLoading = false }
         
-        let baseURL = load_base_url()
-        guard let url = URL(string: "\(baseURL)/projects") else {
-            errorMessage = "Invalid URL"
-            return
-        }
-        
         do {
-            var request = URLRequest(url: url)
-            request.httpMethod = "GET"
-            
-            let (data, response) = try await URLSession.shared.data(for: request)
-            
-            let project = try decoder.decode([Project].self, from: data)
-            projects = project
-            
-            if let https_response = response as? HTTPURLResponse {
-                print("Status Code: \(https_response.statusCode)")
-            }
+            projects = try await client.getProjects()
+            errorMessage = nil
+            print("✅ Successfully decoded \(projects.count) projects")
         } catch {
             print("❌ Load Projects Error: \(error)")
             
-            if let urlError = error as? URLError {
+            if let apiError = error as? APIError {
+                errorMessage = apiError.error
+            } else if let urlError = error as? URLError {
                 switch urlError.code {
                 case .notConnectedToInternet:
-                    self.errorMessage = "No internet connection"
+                    errorMessage = "No internet connection"
                 case .timedOut:
-                    self.errorMessage = "Request timed out"
+                    errorMessage = "Request timed out"
                 default:
-                    self.errorMessage = "Could not connect to the server"
+                    errorMessage = "Could not connect to the server"
                 }
             } else {
-                self.errorMessage = "Failed to load projects. Please try again."
+                errorMessage = "Failed to load projects. Please try again."
             }
         }
     }
@@ -89,9 +67,7 @@ class ProjectService: ObservableObject {
         
         do {
             request.httpBody = try encoder.encode(body)
-            let (data, _) = try await URLSession.shared.data(for: request)
-            
-            _ = try? decoder.decode(Ticket.self, from: data)
+            let (_, _) = try await URLSession.shared.data(for: request)
             await load_project()
         } catch {
             errorMessage = "Failed to create project: \(error.localizedDescription)"

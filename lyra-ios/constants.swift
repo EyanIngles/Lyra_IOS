@@ -4,8 +4,32 @@
 //
 //  Created by Lyrindra Labs on 13/6/2026.
 //
+
+import SwiftUI
+
 struct Constants {
-    static var baseURL_macbook = "https://macbook-pro.tailcb4684.ts.net:3000" //Device: new macbook pro M5 Max.
-    static var baseURL_pi = "https://pi.tailcb4684.ts.net:3000" //Device: Pi Server that is the final product to run the server.
-    
+    /// Production Lyra on the Pi (Tailscale HTTPS). No trailing slash.
+    static let piBaseURL = "https://pi.tailcb4684.ts.net:3000"
+
+    /// App-wide status colors. Chips are step 4; this map is the source of truth.
+    static func color(for status: TicketStatus) -> Color {
+        switch status {
+        case .queued:
+            return .yellow
+        case .running:
+            return .orange
+        case .awaiting_you:
+            return .blue
+        case .pr_opening:
+            return .teal
+        case .pending_review:
+            return .purple
+        case .closed:
+            return .green
+        case .failed:
+            return .red
+        case .unknown:
+            return .gray
+        }
+    }
 }
