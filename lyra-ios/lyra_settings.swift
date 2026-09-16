@@ -6,7 +6,7 @@
 //
 
 import Foundation
-import Combine
+internal import Combine
 
 /// Persisted Pi vs custom BASE_URL and a temporary access token (Keychain is step 3).
 /// The API client reads `baseURL` / `accessToken` per request so Save is visible immediately.
