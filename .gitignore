@@ -1,0 +1,18 @@
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Xcode user data
+xcuserdata/
+**/xcuserdata/
+*.xcuserstate
+
+# Build products
+DerivedData/
+.build/
+*.ipa
+*.dSYM
+*.dSYM.zip
+
+# Local tracker (same idea as lyra-server WORK_PLAN.md)
+work_tracker_phase_v1.md
