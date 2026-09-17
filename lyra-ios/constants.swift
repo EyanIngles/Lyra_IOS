@@ -11,6 +11,9 @@ struct Constants {
     /// Production Lyra on the Pi (Tailscale HTTPS). No trailing slash.
     static let piBaseURL = "https://pi.tailcb4684.ts.net:3000"
 
+    /// OAuth public client id (matches server seed / tests).
+    static let client_id = "lyra-ios"
+
     /// App-wide status colors. Chips are step 4; this map is the source of truth.
     static func color(for status: TicketStatus) -> Color {
         switch status {

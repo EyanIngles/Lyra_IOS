@@ -11,8 +11,8 @@ import SwiftUI
 struct ContentView: View {
     @StateObject private var service = TicketService()
     @StateObject private var projectService = ProjectService()
+    @ObservedObject private var auth = AuthSession.shared
     @State private var showCreateSheet = false
-    @State private var isLoggedIn = false
     
     // Shared gradient (same as LoginView)
     private let lyraGradient = LinearGradient(
@@ -30,7 +30,7 @@ struct ContentView: View {
             Color(red: 0.04, green: 0.06, blue: 0.14)
                 .ignoresSafeArea()
             
-            if isLoggedIn {
+            if auth.isLoggedIn {
                 TabView {
                     Tab("Home", systemImage: "house") {
                         NavigationStack {
@@ -42,7 +42,7 @@ struct ContentView: View {
                     }
                     
                     Tab("Settings", systemImage: "gear") {
-                        SettingsTabView(isLoggedIn: $isLoggedIn)
+                        SettingsTabView()
                     }
                     
                     Tab("Something else", systemImage: "arrow.2.circlepath.circle") {
@@ -51,21 +51,21 @@ struct ContentView: View {
                 }
                 .tint(Color(red: 0.55, green: 0.4, blue: 1.0)) // purple accent for selected tab
             } else {
-                LoginView(service: service, isLoggedIn: $isLoggedIn)
+                LoginView()
             }
+        }
+        .task {
+            await auth.restore()
         }
     }
 }
 
 // MARK: - Settings Tab
 private struct SettingsTabView: View {
-    @Binding var isLoggedIn: Bool
     @ObservedObject private var settings = LyraSettings.shared
     
     @State private var usePi = true
     @State private var customBaseURL = ""
-    @State private var accessToken = ""
-    @State private var showAccessToken = false
     @State private var saveMessage: String?
     
     private let lyraGradient = LinearGradient(
@@ -131,46 +131,8 @@ private struct SettingsTabView: View {
                                 .foregroundStyle(.white)
                                 .tint(Color(red: 0.5, green: 0.4, blue: 1.0))
                         }
-                        
-                        Text("Access token (temporary)")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.white.opacity(0.7))
-                            .padding(.top, 4)
-                        
-                        HStack {
-                            Group {
-                                if showAccessToken {
-                                    TextField("Paste Bearer token", text: $accessToken)
-                                } else {
-                                    SecureField("Paste Bearer token", text: $accessToken)
-                                }
-                            }
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .foregroundStyle(.white)
-                            .tint(Color(red: 0.5, green: 0.4, blue: 1.0))
-                            
-                            Button {
-                                showAccessToken.toggle()
-                            } label: {
-                                Image(systemName: showAccessToken ? "eye.slash.fill" : "eye.fill")
-                                    .foregroundStyle(.white.opacity(0.45))
-                            }
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 14)
-                        .background(Color.white.opacity(0.07))
-                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .stroke(Color.white.opacity(0.1), lineWidth: 1)
-                        )
-                        
-                        Text("GETs work without a JWT on the server. iOS sends Bearer when a token is saved.")
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.4))
-                        
-                        VStack(alignment: .leading, spacing: 6) {
+                         
+                         VStack(alignment: .leading, spacing: 6) {
                             Text("Current base URL")
                                 .font(.caption)
                                 .foregroundStyle(.white.opacity(0.45))
@@ -184,8 +146,7 @@ private struct SettingsTabView: View {
                         Button {
                             settings.save(
                                 usePi: usePi,
-                                customBaseURL: customBaseURL,
-                                accessToken: accessToken
+                                customBaseURL: customBaseURL
                             )
                             saveMessage = "Saved"
                         } label: {
@@ -219,7 +180,7 @@ private struct SettingsTabView: View {
                     
                     Button(role: .destructive) {
                         withAnimation {
-                            isLoggedIn = false
+                            AuthSession.shared.logout()
                         }
                     } label: {
                         Text("Sign Out")
@@ -240,7 +201,6 @@ private struct SettingsTabView: View {
             .onAppear {
                 usePi = settings.usePi
                 customBaseURL = settings.customBaseURL
-                accessToken = settings.accessToken
                 saveMessage = nil
             }
         }

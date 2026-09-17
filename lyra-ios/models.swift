@@ -157,3 +157,34 @@ struct APIError: Error, LocalizedError, Equatable {
 
     var errorDescription: String? { error }
 }
+
+struct AuthorizeRequest: Encodable {
+    let username: String
+    let password: String
+    let client_id: String
+    let code_challenge: String
+    let code_challenge_method: String
+}
+
+struct AuthorizeResponse: Decodable {
+    let code: String
+}
+
+struct AuthorizationCodeTokenRequest: Encodable {
+    let grant_type: String
+    let client_id: String
+    let code: String
+    let code_verifier: String
+}
+
+struct RefreshTokenRequest: Encodable {
+    let grant_type: String
+    let refresh_token: String
+}
+
+struct TokenResponse: Decodable {
+    let access_token: String
+    let refresh_token: String
+    let token_type: String
+    let expires_in: Int
+}
