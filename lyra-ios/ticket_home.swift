@@ -36,10 +36,11 @@ class TicketService: ObservableObject {
     
     func createTicket(name: String, description: String, project: Project) async {
         do {
-            _ = try await client.createTicket(
+            let created = try await client.createTicket(
                 TicketCreate(name: name, description: description, project_id: project.id)
             )
             await fetchTickets()
+            await refreshTicket(id: created.id)
         } catch {
             errorMessage = Self.message(for: error, fallback: "Failed to create ticket")
         }
@@ -48,9 +49,23 @@ class TicketService: ObservableObject {
     func addComment(to ticketId: Int, text: String) async {
         do {
             _ = try await client.addComment(ticketId: ticketId, CommentCreate(text: text))
-            await fetchTickets()
+            await refreshTicket(id: ticketId)
         } catch {
             errorMessage = Self.message(for: error, fallback: "Failed to add comment")
+        }
+    }
+    
+    /// GET /tickets/:id and replace (or append) that ticket in `tickets`.
+    func refreshTicket(id: Int) async {
+        do {
+            let ticket = try await client.getTicket(id: id)
+            if let index = tickets.firstIndex(where: { $0.id == id }) {
+                tickets[index] = ticket
+            } else {
+                tickets.append(ticket)
+            }
+        } catch {
+            print("❌ Refresh ticket \(id) error: \(error)")
         }
     }
     
@@ -291,7 +306,6 @@ struct TicketDetailView: View {
     @Environment(\.dismiss) private var dismiss
     
     @State private var newCommentText = ""
-    @State private var editingComment: Comment? = nil
     @State private var isLoading = false
     
     @State private var showWarningDeleteAlert = false
@@ -381,24 +395,15 @@ struct TicketDetailView: View {
                                 .padding(.horizontal, 20)
                         } else {
                             ForEach(currentTicket.comments) { comment in
-                                HStack(alignment: .top, spacing: 12) {
-                                    Text(comment.text)
-                                        .font(.subheadline)
-                                        .foregroundStyle(.white.opacity(0.85))
-                                        .fixedSize(horizontal: false, vertical: true)
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text(commentAuthorLabel(comment))
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(.white.opacity(0.55))
                                     
-                                    Spacer(minLength: 8)
-                                    
-                                    Button {
-                                        editingComment = comment
-                                        newCommentText = comment.text
-                                    } label: {
-                                        Text("Edit")
-                                            .font(.caption.weight(.medium))
-                                            .foregroundStyle(Color(red: 0.55, green: 0.45, blue: 1.0))
-                                    }
+                                    CommentMarkdownText(text: comment.text)
                                 }
                                 .padding(16)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                                 .background(
                                     RoundedRectangle(cornerRadius: 16, style: .continuous)
                                         .fill(Color.white.opacity(0.05))
@@ -408,17 +413,6 @@ struct TicketDetailView: View {
                                         )
                                 )
                                 .padding(.horizontal, 16)
-                                .swipeActions(edge: .trailing) {
-                                    Button(role: .destructive) {
-                                        isLoading = true
-                                        Task {
-                                            await service.deleteComment(ticketId: currentTicket.id, commentId: comment.id)
-                                            isLoading = false
-                                        }
-                                    } label: {
-                                        Label("Delete", systemImage: "trash")
-                                    }
-                                }
                             }
                         }
                     }
@@ -527,15 +521,6 @@ struct TicketDetailView: View {
         } message: {
             Text("This ticket will be permanently deleted.")
         }
-        .sheet(item: $editingComment) { comment in
-            EditCommentView(text: $newCommentText) {
-                Task {
-                    await service.editComment(to: ticket.id, text: newCommentText)
-                    newCommentText = ""
-                    editingComment = nil
-                }
-            }
-        }
         .overlay {
             if isLoading {
                 Color.black.opacity(0.3).ignoresSafeArea()
@@ -544,87 +529,43 @@ struct TicketDetailView: View {
                     .scaleEffect(1.3)
             }
         }
+        .task {
+            while !Task.isCancelled {
+                await service.refreshTicket(id: ticket.id)
+                try? await Task.sleep(for: .seconds(5))
+            }
+        }
+    }
+    
+    private func commentAuthorLabel(_ comment: Comment) -> String {
+        let trimmed = comment.display.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? comment.author_name : trimmed
     }
 }
 
-// MARK: - Edit Comment View
-struct EditCommentView: View {
-    @Binding var text: String
-    let onSave: () -> Void
-    @Environment(\.dismiss) private var dismiss
-    
-    private let lyraGradient = LinearGradient(
-        colors: [
-            Color(red: 0.65, green: 0.25, blue: 0.95),
-            Color(red: 0.25, green: 0.55, blue: 1.0)
-        ],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing
-    )
+// MARK: - Markdown comment body
+private struct CommentMarkdownText: View {
+    let text: String
     
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Color(red: 0.04, green: 0.06, blue: 0.14)
-                    .ignoresSafeArea()
-                
-                VStack(spacing: 24) {
-                    Text("Edit Comment")
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
-                        .padding(.top, 12)
-                    
-                    TextEditor(text: $text)
-                        .scrollContentBackground(.hidden)
-                        .foregroundStyle(.white)
-                        .tint(Color(red: 0.5, green: 0.4, blue: 1.0))
-                        .padding(16)
-                        .frame(minHeight: 160)
-                        .background(Color.white.opacity(0.07))
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .stroke(Color.white.opacity(0.1), lineWidth: 1)
-                        )
-                        .padding(.horizontal, 20)
-                    
-                    Button {
-                        onSave()
-                        dismiss()
-                    } label: {
-                        Text("Save Changes")
-                            .fontWeight(.semibold)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 16)
-                            .background(lyraGradient)
-                            .foregroundStyle(.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                            .shadow(color: Color(red: 0.4, green: 0.3, blue: 1.0).opacity(0.4), radius: 12, y: 6)
-                    }
-                    .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    .opacity(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.5 : 1)
-                    .padding(.horizontal, 20)
-                    
-                    Spacer()
-                }
-            }
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.8))
-                            .padding(10)
-                            .background(Circle().fill(Color.white.opacity(0.1)))
-                    }
-                }
-            }
-            .toolbarBackground(Color(red: 0.04, green: 0.06, blue: 0.14), for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+        Text(attributed)
+            .font(.subheadline)
+            .tint(Color(red: 0.72, green: 0.78, blue: 1.0))
+            .fixedSize(horizontal: false, vertical: true)
+    }
+    
+    private var attributed: AttributedString {
+        var parsed: AttributedString
+        do {
+            parsed = try AttributedString(
+                markdown: text,
+                options: AttributedString.MarkdownParsingOptions(interpretedSyntax: .full)
+            )
+        } catch {
+            parsed = AttributedString(text)
         }
+        parsed.foregroundColor = Color.white.opacity(0.9)
+        return parsed
     }
 }
 
