@@ -54,6 +54,36 @@ class TicketService: ObservableObject {
             errorMessage = Self.message(for: error, fallback: "Failed to add comment")
         }
     }
+
+    func requestPR(ticketId: Int) async {
+        do {
+            errorMessage = nil
+            _ = try await client.requestPR(ticketId: ticketId)
+            await refreshTicket(id: ticketId)
+        } catch {
+            errorMessage = Self.message(for: error, fallback: "Failed to request PR")
+        }
+    }
+
+    func closeTicket(ticketId: Int) async {
+        do {
+            errorMessage = nil
+            _ = try await client.closeTicket(ticketId: ticketId)
+            await refreshTicket(id: ticketId)
+        } catch {
+            errorMessage = Self.message(for: error, fallback: "Failed to close ticket")
+        }
+    }
+
+    func deployTicket(ticketId: Int) async {
+        do {
+            errorMessage = nil
+            _ = try await client.deployTicket(ticketId: ticketId)
+            await refreshTicket(id: ticketId)
+        } catch {
+            errorMessage = Self.message(for: error, fallback: "Failed to deploy")
+        }
+    }
     
     /// GET /tickets/:id and replace (or append) that ticket in `tickets`.
     func refreshTicket(id: Int) async {
@@ -478,6 +508,38 @@ struct TicketDetailView: View {
                     }
 
                     Button {
+                        isLoading = true
+                        Task {
+                            await service.requestPR(ticketId: currentTicket.id)
+                            isLoading = false
+                        }
+                    } label: {
+                        Label("Request PR", systemImage: "arrow.triangle.branch")
+                    }
+
+                    Button {
+                        isLoading = true
+                        Task {
+                            await service.closeTicket(ticketId: currentTicket.id)
+                            isLoading = false
+                        }
+                    } label: {
+                        Label("Close", systemImage: "xmark.circle")
+                    }
+
+                    if currentTicket.status == .pending_review {
+                        Button {
+                            isLoading = true
+                            Task {
+                                await service.deployTicket(ticketId: currentTicket.id)
+                                isLoading = false
+                            }
+                        } label: {
+                            Label("Deploy", systemImage: "icloud.and.arrow.up")
+                        }
+                    }
+
+                    Button {
                         showNotCompleteWarningAlert = true
                     } label: {
                         Label("Edit Ticket Name", systemImage: "pencil")
@@ -520,6 +582,14 @@ struct TicketDetailView: View {
             }
         } message: {
             Text("This ticket will be permanently deleted.")
+        }
+        .alert("Error", isPresented: Binding(
+            get: { service.errorMessage != nil },
+            set: { if !$0 { service.errorMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(service.errorMessage ?? "")
         }
         .overlay {
             if isLoading {

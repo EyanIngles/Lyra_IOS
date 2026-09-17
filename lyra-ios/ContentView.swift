@@ -11,6 +11,7 @@ import SwiftUI
 struct ContentView: View {
     @StateObject private var service = TicketService()
     @StateObject private var projectService = ProjectService()
+    @StateObject private var permissionService = PermissionService()
     @ObservedObject private var auth = AuthSession.shared
     @State private var showCreateSheet = false
     
@@ -40,13 +41,17 @@ struct ContentView: View {
                             )
                         }
                     }
+
+                    Tab("Needs you", systemImage: "hand.raised") {
+                        PermissionsTabView(
+                            service: permissionService,
+                            ticketService: service
+                        )
+                    }
+                    .badge(permissionService.permissions.count)
                     
                     Tab("Settings", systemImage: "gear") {
                         SettingsTabView()
-                    }
-                    
-                    Tab("Something else", systemImage: "arrow.2.circlepath.circle") {
-                        PlaceholderTabView(title: "Something else")
                     }
                 }
                 .tint(Color(red: 0.55, green: 0.4, blue: 1.0)) // purple accent for selected tab
@@ -204,23 +209,6 @@ private struct SettingsTabView: View {
                 saveMessage = nil
             }
         }
-    }
-}
-
-// MARK: - Placeholder for other tabs
-private struct PlaceholderTabView: View {
-    let title: String
-    
-    var body: some View {
-        VStack {
-            Spacer()
-            Text(title)
-                .font(.title2.weight(.medium))
-                .foregroundStyle(.white.opacity(0.6))
-            Spacer()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(red: 0.04, green: 0.06, blue: 0.14))
     }
 }
 
