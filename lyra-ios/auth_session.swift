@@ -65,7 +65,20 @@ final class AuthSession: ObservableObject {
                 isLoggedIn = true
                 return
             } catch {
-                // Fall through to access token / current_user.
+                // Refresh failed (network or invalid_grant); try existing access token.
+                let access = LyraKeychain.accessToken?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                if !access.isEmpty {
+                    do {
+                        _ = try await client.getCurrentUser()
+                        isLoggedIn = true
+                        return
+                    } catch {
+                        logout()
+                        return
+                    }
+                }
+                logout()
+                return
             }
         }
 
