@@ -11,6 +11,7 @@ import Foundation
 // names (not convertFromSnakeCase) so fields like `type` decode safely.
 
 enum TicketStatus: String, Codable, Hashable {
+    case open
     case queued
     case running
     case awaiting_you
@@ -18,6 +19,7 @@ enum TicketStatus: String, Codable, Hashable {
     case pending_review
     case closed
     case failed
+    case cancelled
     case unknown
 
     init(from decoder: Decoder) throws {
@@ -141,6 +143,65 @@ struct TicketCreate: Codable {
 
 struct CommentCreate: Codable {
     let text: String
+}
+
+struct SetTicketStatus: Encodable {
+    let status: TicketStatus
+}
+
+struct PermissionRequest: Codable, Identifiable {
+    let id: Int
+    let ticket_id: Int
+    let author_name: String
+    let author_type: String
+    let author_role: String
+    let model: String
+    let display: String
+    let tool: String
+    let payload: String
+    let status: String
+    let opencode_session_id: String
+    let permission_id: String
+    let is_used: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case ticket_id
+        case author_name
+        case author_type
+        case author_role
+        case model
+        case display
+        case tool
+        case payload
+        case status
+        case opencode_session_id
+        case permission_id
+        case is_used
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(Int.self, forKey: .id)
+        ticket_id = try container.decodeIfPresent(Int.self, forKey: .ticket_id) ?? 0
+        author_name = try container.decodeIfPresent(String.self, forKey: .author_name) ?? ""
+        author_type = try container.decodeIfPresent(String.self, forKey: .author_type) ?? ""
+        author_role = try container.decodeIfPresent(String.self, forKey: .author_role) ?? ""
+        model = try container.decodeIfPresent(String.self, forKey: .model) ?? ""
+        display = try container.decodeIfPresent(String.self, forKey: .display) ?? ""
+        tool = try container.decodeIfPresent(String.self, forKey: .tool) ?? ""
+        payload = try container.decodeIfPresent(String.self, forKey: .payload) ?? ""
+        status = try container.decodeIfPresent(String.self, forKey: .status) ?? ""
+        opencode_session_id = try container.decodeIfPresent(String.self, forKey: .opencode_session_id) ?? ""
+        permission_id = try container.decodeIfPresent(String.self, forKey: .permission_id) ?? ""
+        if let flag = try container.decodeIfPresent(Bool.self, forKey: .is_used) {
+            is_used = flag
+        } else if let flag = try container.decodeIfPresent(Int.self, forKey: .is_used) {
+            is_used = flag != 0
+        } else {
+            is_used = false
+        }
+    }
 }
 
 struct CurrentUser: Codable, Identifiable {

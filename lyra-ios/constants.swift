@@ -17,6 +17,8 @@ struct Constants {
     /// App-wide status colors. Chips are step 4; this map is the source of truth.
     static func color(for status: TicketStatus) -> Color {
         switch status {
+        case .open:
+            return .mint
         case .queued:
             return .yellow
         case .running:
@@ -31,6 +33,8 @@ struct Constants {
             return .green
         case .failed:
             return .red
+        case .cancelled:
+            return .gray
         case .unknown:
             return .gray
         }

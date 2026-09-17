@@ -59,6 +59,30 @@ final class LyraAPIClient {
         try await post("/tickets/\(ticketId)/comments", body: body)
     }
 
+    func getPendingPermissions() async throws -> [PermissionRequest] {
+        try await get("/permissions?status=pending")
+    }
+
+    func approvePermission(id: Int) async throws -> PermissionRequest {
+        try await postNoBody("/permissions/\(id)/approve")
+    }
+
+    func denyPermission(id: Int) async throws -> PermissionRequest {
+        try await postNoBody("/permissions/\(id)/deny")
+    }
+
+    func requestPR(ticketId: Int) async throws -> Ticket {
+        try await postNoBody("/tickets/\(ticketId)/actions/request_pr")
+    }
+
+    func setTicketStatus(ticketId: Int, status: TicketStatus) async throws -> Ticket {
+        try await post("/tickets/\(ticketId)/actions/set_status", body: SetTicketStatus(status: status))
+    }
+
+    func deployTicket(ticketId: Int) async throws -> Ticket {
+        try await postNoBody("/tickets/\(ticketId)/actions/deploy")
+    }
+
     func authorize(username: String, password: String, codeChallenge: String) async throws -> AuthorizeResponse {
         try await post(
             "/oauth/authorize",
@@ -101,6 +125,12 @@ final class LyraAPIClient {
 
     private func post<T: Decodable, B: Encodable>(_ path: String, body: B) async throws -> T {
         let data = try await perform(method: "POST", path: path, body: body)
+        return try decoder.decode(T.self, from: data)
+    }
+
+    /// POST with no JSON body (`perform(..., body: nil)`), then decode.
+    private func postNoBody<T: Decodable>(_ path: String) async throws -> T {
+        let data = try await perform(method: "POST", path: path, body: nil)
         return try decoder.decode(T.self, from: data)
     }
 
