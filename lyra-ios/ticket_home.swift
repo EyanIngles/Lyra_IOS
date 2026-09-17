@@ -321,9 +321,27 @@ struct TicketDetailView: View {
                     
                     // Header Card
                     VStack(alignment: .leading, spacing: 12) {
-                        Text(currentTicket.name)
-                            .font(.system(size: 26, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white)
+                        HStack(alignment: .top, spacing: 12) {
+                            Text(currentTicket.name)
+                                .font(.system(size: 26, weight: .bold, design: .rounded))
+                                .foregroundStyle(.white)
+                            
+                            Spacer(minLength: 8)
+                            
+                            StatusChip(status: currentTicket.status)
+                        }
+
+                        if !currentTicket.last_model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            HStack(spacing: 6) {
+                                Text("Agent")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.white.opacity(0.45))
+                                Text(currentTicket.last_model)
+                                    .font(.caption)
+                                    .foregroundStyle(.white.opacity(0.7))
+                                    .lineLimit(1)
+                            }
+                        }
                         
                         Text(currentTicket.description)
                             .font(.body)
@@ -342,6 +360,11 @@ struct TicketDetailView: View {
                     )
                     .padding(.horizontal, 16)
                     .padding(.top, 8)
+                    
+                    if GitHubPRLink.url(from: currentTicket.github_pr_url) != nil {
+                        GitHubPRLink(urlString: currentTicket.github_pr_url)
+                            .padding(.horizontal, 16)
+                    }
                     
                     // Comments Section
                     VStack(alignment: .leading, spacing: 14) {
@@ -454,6 +477,12 @@ struct TicketDetailView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
+                    if let url = GitHubPRLink.url(from: currentTicket.github_pr_url) {
+                        Link(destination: url) {
+                            Label("Open Pull Request", systemImage: "arrow.up.right.square")
+                        }
+                    }
+
                     Button {
                         showNotCompleteWarningAlert = true
                     } label: {

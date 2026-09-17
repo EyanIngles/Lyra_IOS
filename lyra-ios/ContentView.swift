@@ -348,24 +348,46 @@ private struct TicketRow: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(ticket.name)
-                .font(.headline.weight(.semibold))
-                .foregroundStyle(.white)
-                .lineLimit(1)
+            HStack(alignment: .center, spacing: 8) {
+                Text(ticket.name)
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                
+                Spacer(minLength: 8)
+                
+                StatusChip(status: ticket.status)
+            }
+
+            if !ticket.last_model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text(ticket.last_model)
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.4))
+                    .lineLimit(1)
+            }
             
             Text(ticket.description)
                 .font(.subheadline)
                 .foregroundStyle(.white.opacity(0.55))
                 .lineLimit(2)
             
-            if !ticket.comments.isEmpty {
-                HStack(spacing: 4) {
-                    Image(systemName: "bubble.left.fill")
-                        .font(.caption2)
-                    Text("\(ticket.comments.count) comment\(ticket.comments.count == 1 ? "" : "s")")
-                        .font(.caption.weight(.medium))
+            let hasPR = GitHubPRLink.url(from: ticket.github_pr_url) != nil
+            if !ticket.comments.isEmpty || hasPR {
+                HStack(spacing: 8) {
+                    if !ticket.comments.isEmpty {
+                        HStack(spacing: 4) {
+                            Image(systemName: "bubble.left.fill")
+                                .font(.caption2)
+                            Text("\(ticket.comments.count) comment\(ticket.comments.count == 1 ? "" : "s")")
+                                .font(.caption.weight(.medium))
+                        }
+                        .foregroundStyle(Color(red: 0.55, green: 0.45, blue: 1.0))
+                    }
+                    
+                    Spacer(minLength: 0)
+                    
+                    GitHubPRLink(urlString: ticket.github_pr_url, compact: true)
                 }
-                .foregroundStyle(Color(red: 0.55, green: 0.45, blue: 1.0))
             }
         }
         .padding(16)
