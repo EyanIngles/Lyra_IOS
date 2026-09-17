@@ -10,8 +10,8 @@ import Foundation
 /// One URLSession for Lyra JSON.
 ///
 /// Does not call `POST /login`, `POST /projects`, or any DELETE routes.
-/// Server GETs `/tickets` and `/projects` work without JWT; iOS sends
-/// `Authorization: Bearer` when Settings has a non-empty token.
+/// Always sends `Authorization: Bearer` when AuthSession/Keychain has an access token.
+/// On HTTP 401 `invalid_token`, refreshes once and retries the original request.
 final class LyraAPIClient {
     static let shared = LyraAPIClient()
 
@@ -53,6 +53,41 @@ final class LyraAPIClient {
         try await post("/tickets/\(ticketId)/comments", body: body)
     }
 
+    func authorize(username: String, password: String, codeChallenge: String) async throws -> AuthorizeResponse {
+        try await post(
+            "/oauth/authorize",
+            body: AuthorizeRequest(
+                username: username,
+                password: password,
+                client_id: Constants.client_id,
+                code_challenge: codeChallenge,
+                code_challenge_method: "S256"
+            )
+        )
+    }
+
+    func exchangeAuthorizationCode(code: String, codeVerifier: String) async throws -> TokenResponse {
+        try await post(
+            "/oauth/token",
+            body: AuthorizationCodeTokenRequest(
+                grant_type: "authorization_code",
+                client_id: Constants.client_id,
+                code: code,
+                code_verifier: codeVerifier
+            )
+        )
+    }
+
+    func refreshTokens(refreshToken: String) async throws -> TokenResponse {
+        try await post(
+            "/oauth/token",
+            body: RefreshTokenRequest(
+                grant_type: "refresh_token",
+                refresh_token: refreshToken
+            )
+        )
+    }
+
     private func get<T: Decodable>(_ path: String) async throws -> T {
         let data = try await perform(method: "GET", path: path, body: nil)
         return try decoder.decode(T.self, from: data)
@@ -63,14 +98,18 @@ final class LyraAPIClient {
         return try decoder.decode(T.self, from: data)
     }
 
-    private func perform(method: String, path: String, body: (any Encodable)?) async throws -> Data {
+    private func perform(
+        method: String,
+        path: String,
+        body: (any Encodable)?,
+        isRetry: Bool = false
+    ) async throws -> Data {
         let url = try makeURL(path: path)
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
-        let token = settings.accessToken.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !token.isEmpty {
+        if let token = AuthSession.shared.accessToken {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
 
@@ -85,10 +124,24 @@ final class LyraAPIClient {
         }
 
         if (400...599).contains(http.statusCode) {
+            let apiError: APIError
             if let payload = try? decoder.decode(ErrorBody.self, from: data) {
-                throw APIError(error: payload.error, statusCode: http.statusCode)
+                apiError = APIError(error: payload.error, statusCode: http.statusCode)
+            } else {
+                apiError = APIError(error: "Request failed (\(http.statusCode))", statusCode: http.statusCode)
             }
-            throw APIError(error: "Request failed (\(http.statusCode))", statusCode: http.statusCode)
+
+            if http.statusCode == 401, apiError.error == "invalid_token" {
+                if !isRetry, shouldAttemptTokenRefresh(path: path) {
+                    try await AuthSession.shared.refreshAccessToken()
+                    return try await perform(method: method, path: path, body: body, isRetry: true)
+                }
+                if isRetry {
+                    AuthSession.shared.logout()
+                }
+            }
+
+            throw apiError
         }
 
         guard (200...299).contains(http.statusCode) else {
@@ -96,6 +149,10 @@ final class LyraAPIClient {
         }
 
         return data
+    }
+
+    private func shouldAttemptTokenRefresh(path: String) -> Bool {
+        path != "/oauth/authorize" && path != "/oauth/token"
     }
 
     private func makeURL(path: String) throws -> URL {

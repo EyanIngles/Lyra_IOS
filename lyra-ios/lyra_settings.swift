@@ -8,15 +8,15 @@
 import Foundation
 internal import Combine
 
-/// Persisted Pi vs custom BASE_URL and a temporary access token (Keychain is step 3).
-/// The API client reads `baseURL` / `accessToken` per request so Save is visible immediately.
+/// Persisted Pi vs custom BASE_URL. Tokens live in the Keychain via AuthSession.
 final class LyraSettings: ObservableObject {
     static let shared = LyraSettings()
+
+    static let legacyAccessTokenKey = "lyra.accessToken"
 
     private enum Keys {
         static let usePi = "lyra.usePi"
         static let customBaseURL = "lyra.customBaseURL"
-        static let accessToken = "lyra.accessToken"
     }
 
     @Published var usePi: Bool {
@@ -25,11 +25,6 @@ final class LyraSettings: ObservableObject {
 
     @Published var customBaseURL: String {
         didSet { UserDefaults.standard.set(customBaseURL, forKey: Keys.customBaseURL) }
-    }
-
-    /// Temporary paste field until step 3 Keychain.
-    @Published var accessToken: String {
-        didSet { UserDefaults.standard.set(accessToken, forKey: Keys.accessToken) }
     }
 
     var baseURL: String {
@@ -45,13 +40,14 @@ final class LyraSettings: ObservableObject {
             usePi = defaults.bool(forKey: Keys.usePi)
         }
         customBaseURL = defaults.string(forKey: Keys.customBaseURL) ?? ""
-        accessToken = defaults.string(forKey: Keys.accessToken) ?? ""
+        if defaults.object(forKey: Self.legacyAccessTokenKey) != nil {
+            defaults.removeObject(forKey: Self.legacyAccessTokenKey)
+        }
     }
 
-    func save(usePi: Bool, customBaseURL: String, accessToken: String) {
+    func save(usePi: Bool, customBaseURL: String) {
         self.usePi = usePi
         self.customBaseURL = Self.stripTrailingSlash(customBaseURL)
-        self.accessToken = accessToken.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     static func stripTrailingSlash(_ url: String) -> String {
