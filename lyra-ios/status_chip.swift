@@ -25,13 +25,18 @@ struct StatusChip: View {
             )
     }
 
-    /// Humanize snake_case raw values: `awaiting_you` → “Awaiting you”.
+    /// Display labels only. Do not change TicketStatus raw values / CONTRACT.
     static func label(for status: TicketStatus) -> String {
-        let parts = status.rawValue.split(separator: "_").map(String.init)
-        guard let first = parts.first else { return status.rawValue }
-        let firstWord = first.lowercased() == "pr" ? "PR" : first.capitalized
-        let rest = parts.dropFirst().map { $0.lowercased() }
-        return ([firstWord] + rest).joined(separator: " ")
+        switch status {
+        case .queued: return "Agent: Queued"
+        case .running: return "Agent: Running"
+        case .pr_opening: return "Agent: PR opening"
+        case .awaiting_you: return "Awaiting you"
+        case .pending_review: return "Pending review"
+        case .closed: return "Closed"
+        case .failed: return "Failed"
+        case .unknown: return "Unknown"
+        }
     }
 }
 
