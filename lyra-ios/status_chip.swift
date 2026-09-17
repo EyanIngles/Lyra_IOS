@@ -28,6 +28,7 @@ struct StatusChip: View {
     /// Display labels only. Do not change TicketStatus raw values / CONTRACT.
     static func label(for status: TicketStatus) -> String {
         switch status {
+        case .open: return "Open"
         case .queued: return "Agent: Queued"
         case .running: return "Agent: Running"
         case .pr_opening: return "Agent: PR opening"
@@ -35,6 +36,7 @@ struct StatusChip: View {
         case .pending_review: return "Pending review"
         case .closed: return "Closed"
         case .failed: return "Failed"
+        case .cancelled: return "Cancelled"
         case .unknown: return "Unknown"
         }
     }

@@ -11,6 +11,7 @@ import Foundation
 // names (not convertFromSnakeCase) so fields like `type` decode safely.
 
 enum TicketStatus: String, Codable, Hashable {
+    case open
     case queued
     case running
     case awaiting_you
@@ -18,6 +19,7 @@ enum TicketStatus: String, Codable, Hashable {
     case pending_review
     case closed
     case failed
+    case cancelled
     case unknown
 
     init(from decoder: Decoder) throws {
@@ -141,6 +143,10 @@ struct TicketCreate: Codable {
 
 struct CommentCreate: Codable {
     let text: String
+}
+
+struct SetTicketStatus: Encodable {
+    let status: TicketStatus
 }
 
 struct PermissionRequest: Codable, Identifiable {

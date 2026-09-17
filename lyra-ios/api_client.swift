@@ -75,8 +75,8 @@ final class LyraAPIClient {
         try await postNoBody("/tickets/\(ticketId)/actions/request_pr")
     }
 
-    func closeTicket(ticketId: Int) async throws -> Ticket {
-        try await postNoBody("/tickets/\(ticketId)/actions/close")
+    func setTicketStatus(ticketId: Int, status: TicketStatus) async throws -> Ticket {
+        try await post("/tickets/\(ticketId)/actions/set_status", body: SetTicketStatus(status: status))
     }
 
     func deployTicket(ticketId: Int) async throws -> Ticket {

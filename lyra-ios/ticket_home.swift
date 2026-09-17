@@ -65,13 +65,15 @@ class TicketService: ObservableObject {
         }
     }
 
-    func closeTicket(ticketId: Int) async {
+    func setTicketStatus(ticketId: Int, status: TicketStatus) async -> Bool {
         do {
             errorMessage = nil
-            _ = try await client.closeTicket(ticketId: ticketId)
+            _ = try await client.setTicketStatus(ticketId: ticketId, status: status)
             await refreshTicket(id: ticketId)
+            return true
         } catch {
-            errorMessage = Self.message(for: error, fallback: "Failed to close ticket")
+            errorMessage = Self.message(for: error, fallback: "Failed to set status")
+            return false
         }
     }
 
@@ -329,6 +331,133 @@ struct CreateTicketView: View {
     }
 }
 
+// MARK: - Change Status Sheet
+struct ChangeStatusView: View {
+    let ticket: Ticket
+    @ObservedObject var service: TicketService
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var isSetting = false
+    @State private var errorMessage: String?
+
+    private let humanStatuses: [TicketStatus] = [
+        .open, .awaiting_you, .pending_review, .closed, .failed, .cancelled
+    ]
+
+    private var currentStatus: TicketStatus {
+        service.tickets.first(where: { $0.id == ticket.id })?.status ?? ticket.status
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Color(red: 0.04, green: 0.06, blue: 0.14)
+                    .ignoresSafeArea()
+
+                VStack(spacing: 28) {
+                    Text("Set status")
+                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .padding(.top, 12)
+
+                    if let errorMessage {
+                        Text(errorMessage)
+                            .font(.subheadline)
+                            .foregroundStyle(.red.opacity(0.9))
+                            .multilineTextAlignment(.center)
+                            .padding()
+                            .frame(maxWidth: .infinity)
+                            .background(Color.red.opacity(0.12))
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .padding(.horizontal, 20)
+                    }
+
+                    VStack(spacing: 10) {
+                        ForEach(humanStatuses, id: \.self) { status in
+                            let isCurrent = status == currentStatus
+                            Button {
+                                Task { await select(status) }
+                            } label: {
+                                HStack(spacing: 12) {
+                                    StatusChip(status: status)
+                                    Spacer(minLength: 8)
+                                    if isCurrent {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundStyle(Constants.color(for: status))
+                                    }
+                                }
+                                .padding(14)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                        .fill(isCurrent ? Constants.color(for: status).opacity(0.12) : Color.white.opacity(0.07))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                                .stroke(
+                                                    isCurrent ? Constants.color(for: status).opacity(0.45) : Color.white.opacity(0.1),
+                                                    lineWidth: 1
+                                                )
+                                        )
+                                )
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(isSetting)
+                        }
+                    }
+                    .padding(22)
+                    .background(
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .fill(Color.white.opacity(0.06))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                            )
+                    )
+                    .padding(.horizontal, 20)
+
+                    Spacer()
+                }
+
+                if isSetting {
+                    Color.black.opacity(0.3).ignoresSafeArea()
+                    ProgressView()
+                        .tint(Color(red: 0.55, green: 0.4, blue: 1.0))
+                        .scaleEffect(1.3)
+                }
+            }
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.8))
+                            .padding(10)
+                            .background(Circle().fill(Color.white.opacity(0.1)))
+                    }
+                }
+            }
+            .toolbarBackground(Color(red: 0.04, green: 0.06, blue: 0.14), for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+        }
+    }
+
+    private func select(_ status: TicketStatus) async {
+        guard !isSetting else { return }
+        isSetting = true
+        errorMessage = nil
+        let ok = await service.setTicketStatus(ticketId: ticket.id, status: status)
+        isSetting = false
+        if ok {
+            dismiss()
+        } else {
+            errorMessage = service.errorMessage
+            service.errorMessage = nil
+        }
+    }
+}
+
 // MARK: - Ticket Detail View
 struct TicketDetailView: View {
     let ticket: Ticket
@@ -338,6 +467,7 @@ struct TicketDetailView: View {
     @State private var newCommentText = ""
     @State private var isLoading = false
     
+    @State private var showChangeStatus = false
     @State private var showWarningDeleteAlert = false
     @State private var showNotCompleteWarningAlert = false
     @State private var showCommentCantDeleteWarningAlert = false
@@ -518,13 +648,9 @@ struct TicketDetailView: View {
                     }
 
                     Button {
-                        isLoading = true
-                        Task {
-                            await service.closeTicket(ticketId: currentTicket.id)
-                            isLoading = false
-                        }
+                        showChangeStatus = true
                     } label: {
-                        Label("Close", systemImage: "xmark.circle")
+                        Label("Change Status", systemImage: "arrow.triangle.2.circlepath")
                     }
 
                     if currentTicket.status == .pending_review {
@@ -560,6 +686,9 @@ struct TicketDetailView: View {
                 }
             }
         }
+        .sheet(isPresented: $showChangeStatus) {
+            ChangeStatusView(ticket: currentTicket, service: service)
+        }
         .alert("Function Not Available", isPresented: $showNotCompleteWarningAlert) {
             Button("OK", role: .cancel) { }
         } message: {
@@ -584,7 +713,7 @@ struct TicketDetailView: View {
             Text("This ticket will be permanently deleted.")
         }
         .alert("Error", isPresented: Binding(
-            get: { service.errorMessage != nil },
+            get: { service.errorMessage != nil && !showChangeStatus },
             set: { if !$0 { service.errorMessage = nil } }
         )) {
             Button("OK", role: .cancel) { }
