@@ -10,6 +10,7 @@ import SwiftUI
 // MARK: - Main App View
 struct ContentView: View {
     @StateObject private var service = TicketService()
+    @StateObject private var projectService = ProjectService()
     @State private var showCreateSheet = false
     @State private var isLoggedIn = false
     
@@ -34,7 +35,7 @@ struct ContentView: View {
                     Tab("Home", systemImage: "house") {
                         NavigationStack {
                             Project_view(
-                                projectService: ProjectService(),
+                                projectService: projectService,
                                 ticketService: service
                             )
                         }
@@ -59,6 +60,13 @@ struct ContentView: View {
 // MARK: - Settings Tab
 private struct SettingsTabView: View {
     @Binding var isLoggedIn: Bool
+    @ObservedObject private var settings = LyraSettings.shared
+    
+    @State private var usePi = true
+    @State private var customBaseURL = ""
+    @State private var accessToken = ""
+    @State private var showAccessToken = false
+    @State private var saveMessage: String?
     
     private let lyraGradient = LinearGradient(
         colors: [
@@ -71,47 +79,170 @@ private struct SettingsTabView: View {
     
     var body: some View {
         NavigationStack {
-            VStack(spacing: 32) {
-                Spacer()
-                
-                // Small logo glow
-                ZStack {
-                    Circle()
-                        .fill(lyraGradient.opacity(0.2))
-                        .frame(width: 90, height: 90)
-                        .blur(radius: 20)
-                    
-                    Text("L")
-                        .font(.system(size: 42, weight: .black, design: .rounded))
-                        .foregroundStyle(lyraGradient)
-                        .shadow(color: Color(red: 0.4, green: 0.3, blue: 1.0).opacity(0.6), radius: 10)
-                }
-                
-                Text("Settings")
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-                
-                Spacer()
-                
-                Button(role: .destructive) {
-                    withAnimation {
-                        isLoggedIn = false
+            ScrollView {
+                VStack(spacing: 28) {
+                    // Small logo glow
+                    ZStack {
+                        Circle()
+                            .fill(lyraGradient.opacity(0.2))
+                            .frame(width: 90, height: 90)
+                            .blur(radius: 20)
+                        
+                        Text("L")
+                            .font(.system(size: 42, weight: .black, design: .rounded))
+                            .foregroundStyle(lyraGradient)
+                            .shadow(color: Color(red: 0.4, green: 0.3, blue: 1.0).opacity(0.6), radius: 10)
                     }
-                } label: {
-                    Text("Sign Out")
-                        .fontWeight(.semibold)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(Color.red.opacity(0.85))
+                    .padding(.top, 24)
+                    
+                    Text("Settings")
+                        .font(.system(size: 28, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    
+                    VStack(alignment: .leading, spacing: 18) {
+                        Text("Server")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.white.opacity(0.7))
+                        
+                        Picker("Server", selection: $usePi) {
+                            Text("Pi").tag(true)
+                            Text("Custom").tag(false)
+                        }
+                        .pickerStyle(.segmented)
+                        .colorScheme(.dark)
+                        
+                        if usePi {
+                            Text(Constants.piBaseURL)
+                                .font(.footnote.monospaced())
+                                .foregroundStyle(.white.opacity(0.55))
+                        } else {
+                            TextField("https://host:3000", text: $customBaseURL)
+                                .keyboardType(.URL)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 14)
+                                .background(Color.white.opacity(0.07))
+                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                                )
+                                .foregroundStyle(.white)
+                                .tint(Color(red: 0.5, green: 0.4, blue: 1.0))
+                        }
+                        
+                        Text("Access token (temporary)")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.white.opacity(0.7))
+                            .padding(.top, 4)
+                        
+                        HStack {
+                            Group {
+                                if showAccessToken {
+                                    TextField("Paste Bearer token", text: $accessToken)
+                                } else {
+                                    SecureField("Paste Bearer token", text: $accessToken)
+                                }
+                            }
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .foregroundStyle(.white)
+                            .tint(Color(red: 0.5, green: 0.4, blue: 1.0))
+                            
+                            Button {
+                                showAccessToken.toggle()
+                            } label: {
+                                Image(systemName: showAccessToken ? "eye.slash.fill" : "eye.fill")
+                                    .foregroundStyle(.white.opacity(0.45))
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 14)
+                        .background(Color.white.opacity(0.07))
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                        )
+                        
+                        Text("GETs work without a JWT on the server. iOS sends Bearer when a token is saved.")
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.4))
+                        
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Current base URL")
+                                .font(.caption)
+                                .foregroundStyle(.white.opacity(0.45))
+                            Text(settings.baseURL.isEmpty ? "—" : settings.baseURL)
+                                .font(.footnote.monospaced())
+                                .foregroundStyle(.white.opacity(0.85))
+                                .textSelection(.enabled)
+                        }
+                        .padding(.top, 4)
+                        
+                        Button {
+                            settings.save(
+                                usePi: usePi,
+                                customBaseURL: customBaseURL,
+                                accessToken: accessToken
+                            )
+                            saveMessage = "Saved"
+                        } label: {
+                            Text("Save")
+                                .fontWeight(.semibold)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 16)
+                                .background(lyraGradient)
+                                .foregroundStyle(.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                                .shadow(color: Color(red: 0.4, green: 0.3, blue: 1.0).opacity(0.45), radius: 16, y: 8)
+                        }
+                        
+                        if let saveMessage {
+                            Text(saveMessage)
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(.green.opacity(0.85))
+                                .frame(maxWidth: .infinity)
+                        }
+                    }
+                    .padding(22)
+                    .background(
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .fill(Color.white.opacity(0.06))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                            )
+                    )
+                    .padding(.horizontal, 20)
+                    
+                    Button(role: .destructive) {
+                        withAnimation {
+                            isLoggedIn = false
+                        }
+                    } label: {
+                        Text("Sign Out")
+                            .fontWeight(.semibold)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(Color.red.opacity(0.85))
+                            .foregroundStyle(.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    }
+                    .padding(.horizontal, 32)
+                    .padding(.bottom, 40)
                 }
-                .padding(.horizontal, 32)
-                .padding(.bottom, 40)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color(red: 0.04, green: 0.06, blue: 0.14))
             .navigationBarHidden(true)
+            .onAppear {
+                usePi = settings.usePi
+                customBaseURL = settings.customBaseURL
+                accessToken = settings.accessToken
+                saveMessage = nil
+            }
         }
     }
 }
@@ -137,7 +268,7 @@ private struct PlaceholderTabView: View {
 public struct TicketListView: View {
     @ObservedObject var service: TicketService
     @ObservedObject var projectService: ProjectService
-    let currentProject: Project?
+    let currentProject: Project
     @Binding var showCreateSheet: Bool
     
     private let lyraGradient = LinearGradient(
@@ -177,9 +308,7 @@ public struct TicketListView: View {
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
-                    let filteredTickets = currentProject == nil
-                        ? service.tickets
-                        : service.tickets.filter { $0.project_id == currentProject?.id }
+                    let filteredTickets = service.tickets.filter { $0.project_id == currentProject.id }
                     
                     if filteredTickets.isEmpty {
                         VStack(spacing: 12) {
@@ -218,7 +347,7 @@ public struct TicketListView: View {
                 }
             }
         }
-        .navigationTitle("Tickets")
+        .navigationTitle(currentProject.name)
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {

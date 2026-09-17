@@ -8,43 +8,7 @@
 import SwiftUI
 internal import Combine
 
-// MARK: - Data Models
-struct Ticket: Codable, Identifiable {
-    let id: Int
-    //let status: Status                                                        //Enum status values to add.
-    let name: String
-    let description: String
-    let project_id: Int
-    let comments: [Comment]
-}
-
-struct Comment: Codable, Identifiable {
-    let id: Int
-    let text: String
-}
-
-enum Status: String, Codable {
-    case not_started
-    case started
-    case completed
-}
-
-struct TicketCreate: Codable {
-    let name: String
-    let description: String
-    let project_id: Int?
-}
-
-struct CommentCreate: Codable {
-    let text: String
-}
-
-public func load_base_url() -> String {
-    //return Constants.baseURL_macbook
-    return Constants.baseURL_pi
-}
-
-// MARK: - Network Service (logic unchanged)
+// MARK: - Network Service
 @MainActor
 class TicketService: ObservableObject {
     
@@ -52,35 +16,42 @@ class TicketService: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String? = nil
     
-    private let decoder = JSONDecoder()
-    private let encoder = JSONEncoder()
-    
-    init() {
-        encoder.keyEncodingStrategy = .convertToSnakeCase
-    }
+    private let client = LyraAPIClient.shared
     
     func fetchTickets() async {
         isLoading = true
         errorMessage = nil
-        let baseURL = load_base_url()
-        
-        guard let url = URL(string: "\(baseURL)/tickets") else {
-            errorMessage = "Invalid URL"
-            isLoading = false
-            return
-        }
         
         do {
-            let (data, _) = try await URLSession.shared.data(from: url)
-            let fetchedTickets = try decoder.decode([Ticket].self, from: data)
+            let fetchedTickets = try await client.getTickets()
             self.tickets = fetchedTickets
             print("✅ Successfully decoded \(fetchedTickets.count) tickets")
         } catch {
-            print("❌ Decoding Error: \(error)")
-            errorMessage = "Failed to load tickets: \(error.localizedDescription)"
+            print("❌ Fetch tickets error: \(error)")
+            errorMessage = Self.message(for: error, fallback: "Failed to load tickets")
         }
         
         isLoading = false
+    }
+    
+    func createTicket(name: String, description: String, project: Project) async {
+        do {
+            _ = try await client.createTicket(
+                TicketCreate(name: name, description: description, project_id: project.id)
+            )
+            await fetchTickets()
+        } catch {
+            errorMessage = Self.message(for: error, fallback: "Failed to create ticket")
+        }
+    }
+    
+    func addComment(to ticketId: Int, text: String) async {
+        do {
+            _ = try await client.addComment(ticketId: ticketId, CommentCreate(text: text))
+            await fetchTickets()
+        } catch {
+            errorMessage = Self.message(for: error, fallback: "Failed to add comment")
+        }
     }
     
     func deleteComment(ticketId: Int, commentId: Int) async {
@@ -104,27 +75,6 @@ class TicketService: ObservableObject {
             }
         } catch {
             errorMessage = "Failed to delete comment from ticket: \(error.localizedDescription)"
-        }
-    }
-    
-    func createTicket(name: String, description: String, project: Project?) async {
-        let baseURL = load_base_url()
-        let project_id = project?.id
-        guard let url = URL(string: "\(baseURL)/tickets") else { return }
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        
-        let body = TicketCreate(name: name, description: description, project_id: project_id)
-        
-        do {
-            request.httpBody = try encoder.encode(body)
-            let (data, _) = try await URLSession.shared.data(for: request)
-            _ = try? decoder.decode(Ticket.self, from: data)
-            await fetchTickets()
-        } catch {
-            errorMessage = "Failed to create ticket: \(error.localizedDescription)"
         }
     }
     
@@ -153,25 +103,6 @@ class TicketService: ObservableObject {
         }
     }
     
-    func addComment(to ticketId: Int, text: String) async {
-        let baseURL = load_base_url()
-        guard let url = URL(string: "\(baseURL)/tickets/\(ticketId)/comments") else { return }
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        
-        let body = CommentCreate(text: text)
-        
-        do {
-            request.httpBody = try encoder.encode(body)
-            let (_, _) = try await URLSession.shared.data(for: request)
-            await fetchTickets()
-        } catch {
-            errorMessage = "Failed to add comment: \(error.localizedDescription)"
-        }
-    }
-    
     func editComment(to ticketId: Int, text: String) async {
         let baseURL = load_base_url()
         guard let url = URL(string: "\(baseURL)/tickets/\(ticketId)/comments") else { return }
@@ -183,18 +114,35 @@ class TicketService: ObservableObject {
         let body = CommentCreate(text: text)
         
         do {
-            request.httpBody = try encoder.encode(body)
+            request.httpBody = try JSONEncoder().encode(body)
             let (_, _) = try await URLSession.shared.data(for: request)
             await fetchTickets()
         } catch {
             errorMessage = "Failed to add comment: \(error.localizedDescription)"
         }
     }
+    
+    private static func message(for error: Error, fallback: String) -> String {
+        if let apiError = error as? APIError {
+            return apiError.error
+        }
+        if let urlError = error as? URLError {
+            switch urlError.code {
+            case .notConnectedToInternet:
+                return "No internet connection"
+            case .timedOut:
+                return "Request timed out"
+            default:
+                return "Could not connect to the server"
+            }
+        }
+        return "\(fallback): \(error.localizedDescription)"
+    }
 }
 
 // MARK: - Create Ticket View
 struct CreateTicketView: View {
-    let project: Project?
+    let project: Project
     @ObservedObject var service: TicketService
     @ObservedObject var projectService: ProjectService
     
@@ -225,7 +173,7 @@ struct CreateTicketView: View {
                             .font(.system(size: 28, weight: .bold, design: .rounded))
                             .foregroundStyle(.white)
                         
-                        Text(project != nil ? "Adding to \(project!.name)" : "Create a standalone ticket")
+                        Text("Adding to \(project.name)")
                             .font(.subheadline)
                             .foregroundStyle(.white.opacity(0.55))
                     }
