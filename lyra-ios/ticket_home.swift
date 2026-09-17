@@ -321,9 +321,15 @@ struct TicketDetailView: View {
                     
                     // Header Card
                     VStack(alignment: .leading, spacing: 12) {
-                        Text(currentTicket.name)
-                            .font(.system(size: 26, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white)
+                        HStack(alignment: .top, spacing: 12) {
+                            Text(currentTicket.name)
+                                .font(.system(size: 26, weight: .bold, design: .rounded))
+                                .foregroundStyle(.white)
+                            
+                            Spacer(minLength: 8)
+                            
+                            StatusChip(status: currentTicket.status)
+                        }
                         
                         Text(currentTicket.description)
                             .font(.body)
@@ -342,6 +348,11 @@ struct TicketDetailView: View {
                     )
                     .padding(.horizontal, 16)
                     .padding(.top, 8)
+                    
+                    if GitHubPRLink.url(from: currentTicket.github_pr_url) != nil {
+                        GitHubPRLink(urlString: currentTicket.github_pr_url)
+                            .padding(.horizontal, 16)
+                    }
                     
                     // Comments Section
                     VStack(alignment: .leading, spacing: 14) {
