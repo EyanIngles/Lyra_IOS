@@ -330,6 +330,18 @@ struct TicketDetailView: View {
                             
                             StatusChip(status: currentTicket.status)
                         }
+
+                        if !currentTicket.last_model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            HStack(spacing: 6) {
+                                Text("Agent")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.white.opacity(0.45))
+                                Text(currentTicket.last_model)
+                                    .font(.caption)
+                                    .foregroundStyle(.white.opacity(0.7))
+                                    .lineLimit(1)
+                            }
+                        }
                         
                         Text(currentTicket.description)
                             .font(.body)
@@ -465,6 +477,12 @@ struct TicketDetailView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
+                    if let url = GitHubPRLink.url(from: currentTicket.github_pr_url) {
+                        Link(destination: url) {
+                            Label("Open Pull Request", systemImage: "arrow.up.right.square")
+                        }
+                    }
+
                     Button {
                         showNotCompleteWarningAlert = true
                     } label: {

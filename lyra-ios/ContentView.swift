@@ -358,6 +358,13 @@ private struct TicketRow: View {
                 
                 StatusChip(status: ticket.status)
             }
+
+            if !ticket.last_model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text(ticket.last_model)
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.4))
+                    .lineLimit(1)
+            }
             
             Text(ticket.description)
                 .font(.subheadline)

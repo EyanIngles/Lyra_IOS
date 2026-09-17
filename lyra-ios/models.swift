@@ -117,6 +117,16 @@ struct Project: Codable, Identifiable {
     }
 }
 
+struct CreateProject: Codable {
+    let name: String
+    let description: String
+
+    enum CodingKeys: String, CodingKey {
+        case name
+        case description
+    }
+}
+
 struct TicketCreate: Codable {
     let name: String
     let description: String

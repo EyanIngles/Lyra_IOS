@@ -9,7 +9,7 @@ import Foundation
 
 /// One URLSession for Lyra JSON.
 ///
-/// Does not call `POST /login`, `POST /projects`, or any DELETE routes.
+/// Does not call `POST /login` or any DELETE routes.
 /// Always sends `Authorization: Bearer` when AuthSession/Keychain has an access token.
 /// On HTTP 401 `invalid_token`, refreshes once and retries the original request.
 final class LyraAPIClient {
@@ -47,6 +47,12 @@ final class LyraAPIClient {
 
     func createTicket(_ body: TicketCreate) async throws -> Ticket {
         try await post("/tickets", body: body)
+    }
+
+    /// POST /projects JSON with Bearer. Server returns 201 empty body — do not decode JSON.
+    /// Server does not yet require JWT; iOS still sends Bearer. Human-only gate is a later Lyra_server PR.
+    func createProject(_ body: CreateProject) async throws {
+        try await postDiscardingBody("/projects", body: body)
     }
 
     func addComment(ticketId: Int, _ body: CommentCreate) async throws -> Comment {
@@ -96,6 +102,11 @@ final class LyraAPIClient {
     private func post<T: Decodable, B: Encodable>(_ path: String, body: B) async throws -> T {
         let data = try await perform(method: "POST", path: path, body: body)
         return try decoder.decode(T.self, from: data)
+    }
+
+    /// POST that treats 201/200 OK as success and discards the body.
+    private func postDiscardingBody<B: Encodable>(_ path: String, body: B) async throws {
+        _ = try await perform(method: "POST", path: path, body: body)
     }
 
     private func perform(
