@@ -34,15 +34,10 @@ class TicketService: ObservableObject {
         isLoading = false
     }
     
-    func createTicket(name: String, description: String, project: Project?) async {
-        guard let project_id = project?.id else {
-            errorMessage = "project_id is required"
-            return
-        }
-        
+    func createTicket(name: String, description: String, project: Project) async {
         do {
             _ = try await client.createTicket(
-                TicketCreate(name: name, description: description, project_id: project_id)
+                TicketCreate(name: name, description: description, project_id: project.id)
             )
             await fetchTickets()
         } catch {
@@ -147,7 +142,7 @@ class TicketService: ObservableObject {
 
 // MARK: - Create Ticket View
 struct CreateTicketView: View {
-    let project: Project?
+    let project: Project
     @ObservedObject var service: TicketService
     @ObservedObject var projectService: ProjectService
     
@@ -178,7 +173,7 @@ struct CreateTicketView: View {
                             .font(.system(size: 28, weight: .bold, design: .rounded))
                             .foregroundStyle(.white)
                         
-                        Text(project != nil ? "Adding to \(project!.name)" : "Create a standalone ticket")
+                        Text("Adding to \(project.name)")
                             .font(.subheadline)
                             .foregroundStyle(.white.opacity(0.55))
                     }

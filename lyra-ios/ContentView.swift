@@ -268,7 +268,7 @@ private struct PlaceholderTabView: View {
 public struct TicketListView: View {
     @ObservedObject var service: TicketService
     @ObservedObject var projectService: ProjectService
-    let currentProject: Project?
+    let currentProject: Project
     @Binding var showCreateSheet: Bool
     
     private let lyraGradient = LinearGradient(
@@ -308,9 +308,7 @@ public struct TicketListView: View {
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
-                    let filteredTickets = currentProject == nil
-                        ? service.tickets
-                        : service.tickets.filter { $0.project_id == currentProject?.id }
+                    let filteredTickets = service.tickets.filter { $0.project_id == currentProject.id }
                     
                     if filteredTickets.isEmpty {
                         VStack(spacing: 12) {
@@ -349,7 +347,7 @@ public struct TicketListView: View {
                 }
             }
         }
-        .navigationTitle("Tickets")
+        .navigationTitle(currentProject.name)
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {

@@ -120,45 +120,6 @@ public struct Project_view: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     List {
-                        // View All Tickets
-                        NavigationLink {
-                            TicketListView(
-                                service: ticketService,
-                                projectService: projectService,
-                                currentProject: nil,
-                                showCreateSheet: $showCreateSheet
-                            )
-                        } label: {
-                            HStack(spacing: 14) {
-                                Image(systemName: "list.bullet")
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundStyle(.white)
-                                    .frame(width: 36, height: 36)
-                                    .background(
-                                        Circle()
-                                            .fill(lyraGradient)
-                                    )
-                                
-                                Text("View All Tickets")
-                                    .font(.headline.weight(.semibold))
-                                    .foregroundStyle(.white)
-                            }
-                            .padding(16)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(
-                                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                    .fill(Color.white.opacity(0.06))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                                    )
-                            )
-                        }
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                        
-                        // Projects
                         ForEach(projectService.projects) { project in
                             NavigationLink {
                                 TicketListView(
